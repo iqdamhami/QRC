@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة الإدارة - مركز الملكة رانيا</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">مر</div>
+        <div class="logo-text">
+          <h1>مركز الملكة رانيا</h1>
+          <p>لوحة تحكم الإدارة</p>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <span id="admin-name" style="opacity:0.9; font-size:0.9rem;"></span>
+        <button onclick="doLogout()">تسجيل الخروج</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="stats" id="stats">
+      <div class="stat-card"><div class="num" id="stat-users">-</div><div class="label">المشتركون</div></div>
+      <div class="stat-card"><div class="num" id="stat-inquiries">-</div><div class="label">الاستفسارات</div></div>
+      <div class="stat-card"><div class="num" id="stat-pending">-</div><div class="label">قيد الانتظار</div></div>
+      <div class="stat-card"><div class="num" id="stat-replied">-</div><div class="label">تم الرد</div></div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="inquiries">الاستفسارات</button>
+      <button class="tab" data-tab="users">حسابات المشتركين</button>
+    </div>
+
+    <div id="tab-inquiries" class="tab-content active">
+      <div class="card">
+        <h3>📬 جميع الاستفسارات</h3>
+        <div id="inquiries-list"></div>
+      </div>
+    </div>
+
+    <div id="tab-users" class="tab-content">
+      <div class="card">
+        <h3>👥 حسابات المشتركين</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>الاسم</th>
+                <th>البريد</th>
+                <th>الهاتف</th>
+                <th>تاريخ التسجيل</th>
+                <th>الاستفسارات</th>
+                <th>إجراءات</th>
+              </tr>
+            </thead>
+            <tbody id="users-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Reply Modal -->
+  <div class="modal-overlay" id="reply-modal">
+    <div class="modal">
+      <h3>الرد على الاستفسار</h3>
+      <div id="reply-preview" style="margin-bottom:1rem; padding:0.75rem; background:#f0f5f3; border-radius:8px; font-size:0.95rem;"></div>
+      <div class="form-group">
+        <label for="reply-text">نص الرد</label>
+        <textarea id="reply-text" placeholder="اكتب ردك هنا..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeReplyModal()">إلغاء</button>
+        <button class="btn btn-primary" id="send-reply-btn">إرسال الرد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Inquiries Modal -->
+  <div class="modal-overlay" id="user-inquiries-modal">
+    <div class="modal" style="max-width:600px;">
+      <h3 id="user-inq-title">استفسارات المشترك</h3>
+      <div id="user-inq-list"></div>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeUserInqModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    © مركز الملكة رانيا للدراسات الأردنية وخدمة المجتمع - جامعة اليرموك
+  </footer>
+
+  <script src="js/db.js"></script>
+  <script>
+    var currentUser = requireLogin('admin');
+    if (!currentUser) { /* redirected */ }
+
+    document.getElementById('admin-name').textContent = currentUser.full_name;
+    var replyInquiryId = null;
+
+    function loadInquiries() {
+      var list = DB.getAllInquiries();
+      var container = document.getElementById('inquiries-list');
+
+      document.getElementById('stat-inquiries').textContent = list.length;
+      document.getElementById('stat-pending').textContent = list.filter(function (i) { return i.status === 'pending'; }).length;
+      document.getElementById('stat-replied').textContent = list.filter(function (i) { return i.status === 'replied'; }).length;
+
+      if (!list.length) {
+        container.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>لا توجد استفسارات بعد</div>';
+        return;
+      }
+
+      container.innerHTML = list.map(function (i) {
+        return '<div class="inquiry-item">' +
+          '<div class="meta">' +
+            '<span class="status status-' + i.status + '">' + (i.status === 'replied' ? 'تم الرد' : 'قيد الانتظار') + '</span>' +
+            ' · ' + formatDate(i.created_at) +
+            ' · <strong>' + escapeHtml(i.full_name) + '</strong> (' + escapeHtml(i.email) + ')' +
+            (i.phone ? ' · ' + escapeHtml(i.phone) : '') +
+            (i.course_title ? '<br>البرنامج: ' + escapeHtml(i.course_title) : '') +
+          '</div>' +
+          '<div class="message"><strong>الاستفسار:</strong><br>' + escapeHtml(i.message) + '</div>' +
+          (i.admin_reply ? '<div class="reply"><strong>الرد السابق:</strong><br>' + escapeHtml(i.admin_reply) + '</div>' : '') +
+          '<div style="margin-top:0.75rem;">' +
+            '<button class="btn btn-primary btn-sm" data-id="' + i.id + '" data-name="' + escapeHtml(i.full_name) + '" data-msg="' + escapeHtml(i.message).replace(/"/g, '&quot;') + '" onclick="openReplyFromBtn(this)">' +
+              (i.admin_reply ? 'تعديل / إعادة الرد' : 'الرد') +
+            '</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    function openReplyFromBtn(btn) {
+      openReplyModal(Number(btn.dataset.id), btn.dataset.name, btn.dataset.msg);
+    }
+
+    function loadUsers() {
+      var users = DB.getSubscribers();
+      document.getElementById('stat-users').textContent = users.length;
+      var tbody = document.getElementById('users-tbody');
+
+      if (!users.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">لا يوجد مشتركون بعد</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = users.map(function (u) {
+        return '<tr>' +
+          '<td>' + escapeHtml(u.full_name) + '</td>' +
+          '<td>' + escapeHtml(u.email) + '</td>' +
+          '<td>' + escapeHtml(u.phone || '-') + '</td>' +
+          '<td>' + formatDate(u.created_at) + '</td>' +
+          '<td>' + u.inquiries_count + '</td>' +
+          '<td>' +
+            '<button class="btn btn-outline btn-sm" onclick="viewUserInquiries(' + u.id + ')">عرض الاستفسارات</button> ' +
+            '<button class="btn btn-danger btn-sm" onclick="deleteUser(' + u.id + ', \'' + escapeHtml(u.full_name).replace(/'/g, "\\'") + '\')">حذف الحساب</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function openReplyModal(id, name, message) {
+      replyInquiryId = id;
+      document.getElementById('reply-preview').innerHTML = '<strong>' + escapeHtml(name) + ':</strong><br>' + escapeHtml(message);
+      document.getElementById('reply-text').value = '';
+      document.getElementById('reply-modal').classList.add('show');
+    }
+
+    function closeReplyModal() {
+      document.getElementById('reply-modal').classList.remove('show');
+      replyInquiryId = null;
+    }
+
+    document.getElementById('send-reply-btn').addEventListener('click', function () {
+      var reply = document.getElementById('reply-text').value.trim();
+      if (!reply) {
+        alert('يرجى كتابة الرد');
+        return;
+      }
+      DB.replyToInquiry(replyInquiryId, reply);
+      closeReplyModal();
+      loadInquiries();
+    });
+
+    function viewUserInquiries(userId) {
+      var user = DB.getUserById(userId);
+      if (!user) return;
+      document.getElementById('user-inq-title').textContent = 'استفسارات: ' + user.full_name;
+      var list = DB.getInquiriesByUser(userId);
+      var container = document.getElementById('user-inq-list');
+      if (!list.length) {
+        container.innerHTML = '<div class="empty">لا توجد استفسارات لهذا المشترك</div>';
+      } else {
+        container.innerHTML = list.map(function (i) {
+          return '<div class="inquiry-item">' +
+            '<div class="meta">' +
+              '<span class="status status-' + i.status + '">' + (i.status === 'replied' ? 'تم الرد' : 'قيد الانتظار') + '</span>' +
+              ' · ' + formatDate(i.created_at) +
+              (i.course_title ? ' · ' + escapeHtml(i.course_title) : '') +
+            '</div>' +
+            '<div class="message">' + escapeHtml(i.message) + '</div>' +
+            (i.admin_reply ? '<div class="reply"><strong>الرد:</strong> ' + escapeHtml(i.admin_reply) + '</div>' : '') +
+          '</div>';
+        }).join('');
+      }
+      document.getElementById('user-inquiries-modal').classList.add('show');
+    }
+
+    function closeUserInqModal() {
+      document.getElementById('user-inquiries-modal').classList.remove('show');
+    }
+
+    function deleteUser(id, name) {
+      if (!confirm('هل أنت متأكد من حذف حساب "' + name + '"؟\nسيتم حذف جميع استفساراته أيضاً.')) return;
+      DB.deleteUser(id);
+      loadUsers();
+      loadInquiries();
+    }
+
+    document.querySelectorAll('.tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'users') loadUsers();
+      });
+    });
+
+    document.querySelectorAll('.modal-overlay').forEach(function (el) {
+      el.addEventListener('click', function (e) {
+        if (e.target === el) el.classList.remove('show');
+      });
+    });
+
+    function doLogout() {
+      DB.logout();
+      window.location.href = 'index.html';
+    }
+
+    loadInquiries();
+    loadUsers();
+  </script>
+</body>
+</html>

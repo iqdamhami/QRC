@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة المشترك - مركز الملكة رانيا</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="header">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">مر</div>
+        <div class="logo-text">
+          <h1>مركز الملكة رانيا</h1>
+          <p>للدراسات الأردنية وخدمة المجتمع</p>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <span id="user-name" style="opacity:0.9; font-size:0.9rem;"></span>
+        <button onclick="doLogout()">تسجيل الخروج</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="tabs">
+      <button class="tab active" data-tab="courses">الدورات والدبلومات</button>
+      <button class="tab" data-tab="inquiry">إرسال استفسار</button>
+      <button class="tab" data-tab="my-inquiries">استفساراتي</button>
+    </div>
+
+    <div id="tab-courses" class="tab-content active">
+      <div class="card">
+        <h3>📚 قائمة الدورات والدبلومات</h3>
+        <p style="color:var(--text-muted); margin-bottom:1.25rem;">
+          استعرض البرامج المقدمة من المركز. يمكنك إرسال استفسار عن أي برنامج من تبويب "إرسال استفسار".
+        </p>
+        <div id="courses-list" class="courses-grid"></div>
+      </div>
+    </div>
+
+    <div id="tab-inquiry" class="tab-content">
+      <div class="card" style="max-width:600px;">
+        <h3>✉️ إرسال استفسار</h3>
+        <p style="color:var(--text-muted); margin-bottom:1rem; font-size:0.95rem;">
+          اكتب استفسارك وسيصل مباشرة إلى إدارة المركز مع بيانات حسابك. يمكنك ربط الاستفسار بدورة أو دبلوم محدد.
+        </p>
+        <div id="inquiry-alert"></div>
+        <form id="inquiry-form">
+          <div class="form-group">
+            <label for="course_id">الدورة / الدبلوم (اختياري)</label>
+            <select id="course_id" name="course_id">
+              <option value="">-- استفسار عام --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="message">نص الاستفسار *</label>
+            <textarea id="message" name="message" required placeholder="اكتب استفسارك هنا... مثلاً: أود معرفة مواعيد التسجيل أو الرسوم أو شروط القبول..."></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary">إرسال الاستفسار</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="tab-my-inquiries" class="tab-content">
+      <div class="card">
+        <h3>📋 استفساراتي والردود</h3>
+        <div id="my-inquiries-list"></div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    © مركز الملكة رانيا للدراسات الأردنية وخدمة المجتمع - جامعة اليرموك
+  </footer>
+
+  <script src="js/db.js"></script>
+  <script>
+    var currentUser = requireLogin('subscriber');
+    if (!currentUser) { /* redirected */ }
+
+    document.getElementById('user-name').textContent = 'مرحباً، ' + currentUser.full_name;
+
+    function loadCourses() {
+      var courses = DB.getCourses();
+      var container = document.getElementById('courses-list');
+      var select = document.getElementById('course_id');
+
+      if (!courses.length) {
+        container.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>لا توجد دورات حالياً</div>';
+        return;
+      }
+
+      container.innerHTML = courses.map(function (c) {
+        return '<div class="course-card">' +
+          '<span class="course-badge ' + (c.category === 'دبلوم' ? 'badge-diploma' : 'badge-course') + '">' + escapeHtml(c.category) + '</span>' +
+          '<h4>' + escapeHtml(c.title) + '</h4>' +
+          '<p>' + escapeHtml(c.description) + '</p>' +
+          '<div class="course-meta">' +
+            (c.duration ? '<span>⏱ ' + escapeHtml(c.duration) + '</span>' : '') +
+            (c.hours ? '<span>📖 ' + escapeHtml(c.hours) + '</span>' : '') +
+            (c.fees ? '<span>💰 ' + escapeHtml(c.fees) + '</span>' : '') +
+          '</div>' +
+          (c.certificate ? '<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;">🏆 ' + escapeHtml(c.certificate) + '</p>' : '') +
+          '<button class="btn btn-outline btn-sm" onclick="selectCourse(' + c.id + ')">استفسر عن هذا البرنامج</button>' +
+        '</div>';
+      }).join('');
+
+      select.innerHTML = '<option value="">-- استفسار عام --</option>' +
+        courses.map(function (c) {
+          return '<option value="' + c.id + '">' + escapeHtml(c.title) + '</option>';
+        }).join('');
+    }
+
+    function selectCourse(id) {
+      document.querySelector('[data-tab="inquiry"]').click();
+      document.getElementById('course_id').value = id;
+      document.getElementById('message').focus();
+    }
+
+    function loadMyInquiries() {
+      var list = DB.getInquiriesByUser(currentUser.id);
+      var container = document.getElementById('my-inquiries-list');
+
+      if (!list.length) {
+        container.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>لم ترسل أي استفسارات بعد</div>';
+        return;
+      }
+
+      container.innerHTML = list.map(function (i) {
+        return '<div class="inquiry-item">' +
+          '<div class="meta">' +
+            '<span class="status status-' + i.status + '">' + (i.status === 'replied' ? 'تم الرد' : 'قيد الانتظار') + '</span>' +
+            ' · ' + formatDate(i.created_at) +
+            (i.course_title ? ' · ' + escapeHtml(i.course_title) : '') +
+          '</div>' +
+          '<div class="message"><strong>استفسارك:</strong><br>' + escapeHtml(i.message) + '</div>' +
+          (i.admin_reply ? '<div class="reply"><strong>رد الإدارة:</strong><br>' + escapeHtml(i.admin_reply) +
+            (i.replied_at ? '<div style="font-size:0.8rem;margin-top:0.4rem;opacity:0.7;">' + formatDate(i.replied_at) + '</div>' : '') +
+          '</div>' : '') +
+        '</div>';
+      }).join('');
+    }
+
+    document.getElementById('inquiry-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var alertBox = document.getElementById('inquiry-alert');
+      alertBox.innerHTML = '';
+      var course_id = document.getElementById('course_id').value || null;
+      var message = document.getElementById('message').value.trim();
+
+      if (message.length < 5) {
+        alertBox.innerHTML = '<div class="alert alert-error">يرجى كتابة استفسار واضح (5 أحرف على الأقل)</div>';
+        return;
+      }
+
+      DB.createInquiry(currentUser.id, course_id, message);
+      alertBox.innerHTML = '<div class="alert alert-success">تم إرسال الاستفسار بنجاح! سيتم الرد عليك قريباً.</div>';
+      document.getElementById('message').value = '';
+      document.getElementById('course_id').value = '';
+      loadMyInquiries();
+    });
+
+    document.querySelectorAll('.tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
+        document.querySelectorAll('.tab-content').forEach(function (c) { c.classList.remove('active'); });
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'my-inquiries') loadMyInquiries();
+      });
+    });
+
+    function doLogout() {
+      DB.logout();
+      window.location.href = 'index.html';
+    }
+
+    loadCourses();
+    loadMyInquiries();
+  </script>
+</body>
+</html>
