@@ -163,16 +163,24 @@ function getDB() {
           created_at: new Date().toISOString()
         }
       ],
-      courses: DEFAULT_COURSES,
+      courses: DEFAULT_COURSES.slice(),
       inquiries: [],
       nextUserId: 2,
       nextInquiryId: 1,
+      nextCourseId: 14,
       session: null
     };
     localStorage.setItem(DB_KEY, JSON.stringify(initial));
     return initial;
   }
-  return JSON.parse(raw);
+  const data = JSON.parse(raw);
+  // migrate older DBs that lack nextCourseId
+  if (typeof data.nextCourseId !== 'number') {
+    const maxId = (data.courses || []).reduce((m, c) => Math.max(m, c.id || 0), 0);
+    data.nextCourseId = maxId + 1;
+    saveDB(data);
+  }
+  return data;
 }
 
 function saveDB(data) {
@@ -252,6 +260,20 @@ const DB = {
     saveDB(data);
     return true;
   },
+  changePassword(userId, currentPassword, newPassword) {
+    const data = getDB();
+    const user = data.users.find(u => u.id === Number(userId));
+    if (!user) return { error: 'المستخدم غير موجود' };
+    if (user.password !== simpleHash(currentPassword)) {
+      return { error: 'كلمة المرور الحالية غير صحيحة' };
+    }
+    if (!newPassword || newPassword.length < 6) {
+      return { error: 'كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل' };
+    }
+    user.password = simpleHash(newPassword);
+    saveDB(data);
+    return { success: true };
+  },
 
   // Courses
   getCourses() {
@@ -259,6 +281,38 @@ const DB = {
   },
   getCourseById(id) {
     return getDB().courses.find(c => c.id === Number(id));
+  },
+  addCourse(course) {
+    const data = getDB();
+    if (!course.title || !course.title.trim()) {
+      return { error: 'عنوان الدورة/الدبلوم مطلوب' };
+    }
+    if (!course.category || (course.category !== 'دورة' && course.category !== 'دبلوم')) {
+      return { error: 'التصنيف يجب أن يكون "دورة" أو "دبلوم"' };
+    }
+    const newCourse = {
+      id: data.nextCourseId++,
+      title: course.title.trim(),
+      description: (course.description || '').trim(),
+      duration: (course.duration || '').trim(),
+      hours: (course.hours || '').trim(),
+      fees: (course.fees || '').trim(),
+      category: course.category,
+      certificate: (course.certificate || '').trim()
+    };
+    data.courses.push(newCourse);
+    saveDB(data);
+    return { course: newCourse };
+  },
+  deleteCourse(id) {
+    const data = getDB();
+    const courseId = Number(id);
+    const exists = data.courses.some(c => c.id === courseId);
+    if (!exists) return false;
+    data.courses = data.courses.filter(c => c.id !== courseId);
+    // keep inquiries but clear course reference conceptually (title still shown if cached; we leave course_id as-is)
+    saveDB(data);
+    return true;
   },
 
   // Inquiries

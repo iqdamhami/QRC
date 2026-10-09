@@ -28,12 +28,14 @@
       <div class="stat-card"><div class="num" id="stat-users">-</div><div class="label">المشتركون</div></div>
       <div class="stat-card"><div class="num" id="stat-inquiries">-</div><div class="label">الاستفسارات</div></div>
       <div class="stat-card"><div class="num" id="stat-pending">-</div><div class="label">قيد الانتظار</div></div>
-      <div class="stat-card"><div class="num" id="stat-replied">-</div><div class="label">تم الرد</div></div>
+      <div class="stat-card"><div class="num" id="stat-courses">-</div><div class="label">الدورات والدبلومات</div></div>
     </div>
 
     <div class="tabs">
       <button class="tab active" data-tab="inquiries">الاستفسارات</button>
       <button class="tab" data-tab="users">حسابات المشتركين</button>
+      <button class="tab" data-tab="courses">إدارة الدورات</button>
+      <button class="tab" data-tab="settings">إعدادات الحساب</button>
     </div>
 
     <div id="tab-inquiries" class="tab-content active">
@@ -61,6 +63,39 @@
             <tbody id="users-tbody"></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <div id="tab-courses" class="tab-content">
+      <div class="card">
+        <h3>📚 إدارة الدورات والدبلومات</h3>
+        <p style="color:var(--text-muted); margin-bottom:1.25rem; font-size:0.95rem;">
+          أضف دورة أو دبلوماً جديداً، أو احذف برنامجاً موجوداً. ستظهر التغييرات فوراً للمشتركين.
+        </p>
+        <button class="btn btn-primary" style="margin-bottom:1.25rem;" onclick="openAddCourseModal()">+ إضافة دورة / دبلوم</button>
+        <div id="admin-courses-list" class="courses-grid"></div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="tab-content">
+      <div class="card" style="max-width:480px;">
+        <h3>🔐 تغيير كلمة مرور الأدمن</h3>
+        <div id="password-alert"></div>
+        <form id="change-password-form">
+          <div class="form-group">
+            <label for="current-password">كلمة المرور الحالية *</label>
+            <input type="password" id="current-password" required minlength="6" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label for="new-password">كلمة المرور الجديدة *</label>
+            <input type="password" id="new-password" required minlength="6" placeholder="6 أحرف على الأقل">
+          </div>
+          <div class="form-group">
+            <label for="confirm-password">تأكيد كلمة المرور الجديدة *</label>
+            <input type="password" id="confirm-password" required minlength="6" placeholder="أعد إدخال كلمة المرور">
+          </div>
+          <button type="submit" class="btn btn-primary">حفظ كلمة المرور الجديدة</button>
+        </form>
       </div>
     </div>
   </main>
@@ -92,6 +127,51 @@
     </div>
   </div>
 
+  <!-- Add Course Modal -->
+  <div class="modal-overlay" id="add-course-modal">
+    <div class="modal" style="max-width:560px;">
+      <h3>إضافة دورة / دبلوم</h3>
+      <div id="add-course-alert"></div>
+      <form id="add-course-form">
+        <div class="form-group">
+          <label for="course-title">العنوان *</label>
+          <input type="text" id="course-title" required placeholder="مثال: دبلوم مهني في المحاسبة">
+        </div>
+        <div class="form-group">
+          <label for="course-category">التصنيف *</label>
+          <select id="course-category" required>
+            <option value="دبلوم">دبلوم</option>
+            <option value="دورة">دورة</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="course-description">الوصف</label>
+          <textarea id="course-description" placeholder="وصف مختصر للبرنامج..."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="course-duration">المدة</label>
+          <input type="text" id="course-duration" placeholder="مثال: 9 أشهر">
+        </div>
+        <div class="form-group">
+          <label for="course-hours">عدد الساعات</label>
+          <input type="text" id="course-hours" placeholder="مثال: 400 ساعة">
+        </div>
+        <div class="form-group">
+          <label for="course-fees">الرسوم</label>
+          <input type="text" id="course-fees" placeholder="مثال: 1000 دينار أردني">
+        </div>
+        <div class="form-group">
+          <label for="course-certificate">الشهادة</label>
+          <input type="text" id="course-certificate" placeholder="مثال: شهادة معتمدة من جامعة اليرموك">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" onclick="closeAddCourseModal()">إلغاء</button>
+          <button type="submit" class="btn btn-primary">إضافة</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <footer class="footer">
     © مركز الملكة رانيا للدراسات الأردنية وخدمة المجتمع - جامعة اليرموك
   </footer>
@@ -110,7 +190,6 @@
 
       document.getElementById('stat-inquiries').textContent = list.length;
       document.getElementById('stat-pending').textContent = list.filter(function (i) { return i.status === 'pending'; }).length;
-      document.getElementById('stat-replied').textContent = list.filter(function (i) { return i.status === 'replied'; }).length;
 
       if (!list.length) {
         container.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>لا توجد استفسارات بعد</div>';
@@ -164,6 +243,70 @@
           '</td>' +
         '</tr>';
       }).join('');
+    }
+
+    function loadCoursesAdmin() {
+      var courses = DB.getCourses();
+      document.getElementById('stat-courses').textContent = courses.length;
+      var container = document.getElementById('admin-courses-list');
+
+      if (!courses.length) {
+        container.innerHTML = '<div class="empty"><div class="empty-icon">📭</div>لا توجد دورات حالياً. أضف دورة أو دبلوماً جديداً.</div>';
+        return;
+      }
+
+      container.innerHTML = courses.map(function (c) {
+        return '<div class="course-card">' +
+          '<span class="course-badge ' + (c.category === 'دبلوم' ? 'badge-diploma' : 'badge-course') + '">' + escapeHtml(c.category) + '</span>' +
+          '<h4>' + escapeHtml(c.title) + '</h4>' +
+          '<p>' + escapeHtml(c.description || '') + '</p>' +
+          '<div class="course-meta">' +
+            (c.duration ? '<span>⏱ ' + escapeHtml(c.duration) + '</span>' : '') +
+            (c.hours ? '<span>📖 ' + escapeHtml(c.hours) + '</span>' : '') +
+            (c.fees ? '<span>💰 ' + escapeHtml(c.fees) + '</span>' : '') +
+          '</div>' +
+          (c.certificate ? '<p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.5rem;">🏆 ' + escapeHtml(c.certificate) + '</p>' : '') +
+          '<button class="btn btn-danger btn-sm" onclick="deleteCourse(' + c.id + ', \'' + escapeHtml(c.title).replace(/'/g, "\\'") + '\')">حذف</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    function openAddCourseModal() {
+      document.getElementById('add-course-alert').innerHTML = '';
+      document.getElementById('add-course-form').reset();
+      document.getElementById('course-category').value = 'دبلوم';
+      document.getElementById('add-course-modal').classList.add('show');
+    }
+
+    function closeAddCourseModal() {
+      document.getElementById('add-course-modal').classList.remove('show');
+    }
+
+    document.getElementById('add-course-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var alertBox = document.getElementById('add-course-alert');
+      alertBox.innerHTML = '';
+      var result = DB.addCourse({
+        title: document.getElementById('course-title').value,
+        category: document.getElementById('course-category').value,
+        description: document.getElementById('course-description').value,
+        duration: document.getElementById('course-duration').value,
+        hours: document.getElementById('course-hours').value,
+        fees: document.getElementById('course-fees').value,
+        certificate: document.getElementById('course-certificate').value
+      });
+      if (result.error) {
+        alertBox.innerHTML = '<div class="alert alert-error">' + result.error + '</div>';
+        return;
+      }
+      closeAddCourseModal();
+      loadCoursesAdmin();
+    });
+
+    function deleteCourse(id, title) {
+      if (!confirm('هل أنت متأكد من حذف "' + title + '"؟')) return;
+      DB.deleteCourse(id);
+      loadCoursesAdmin();
     }
 
     function openReplyModal(id, name, message) {
@@ -224,6 +367,26 @@
       loadInquiries();
     }
 
+    document.getElementById('change-password-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var alertBox = document.getElementById('password-alert');
+      alertBox.innerHTML = '';
+      var current = document.getElementById('current-password').value;
+      var newPass = document.getElementById('new-password').value;
+      var confirm = document.getElementById('confirm-password').value;
+      if (newPass !== confirm) {
+        alertBox.innerHTML = '<div class="alert alert-error">كلمتا المرور الجديدتان غير متطابقتين</div>';
+        return;
+      }
+      var result = DB.changePassword(currentUser.id, current, newPass);
+      if (result.error) {
+        alertBox.innerHTML = '<div class="alert alert-error">' + result.error + '</div>';
+        return;
+      }
+      alertBox.innerHTML = '<div class="alert alert-success">تم تغيير كلمة المرور بنجاح</div>';
+      document.getElementById('change-password-form').reset();
+    });
+
     document.querySelectorAll('.tab').forEach(function (tab) {
       tab.addEventListener('click', function () {
         document.querySelectorAll('.tab').forEach(function (t) { t.classList.remove('active'); });
@@ -231,6 +394,7 @@
         tab.classList.add('active');
         document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
         if (tab.dataset.tab === 'users') loadUsers();
+        if (tab.dataset.tab === 'courses') loadCoursesAdmin();
       });
     });
 
@@ -247,6 +411,7 @@
 
     loadInquiries();
     loadUsers();
+    loadCoursesAdmin();
   </script>
 </body>
 </html>
