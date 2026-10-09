@@ -207,7 +207,7 @@
           '</div>' +
           '<div class="message"><strong>الاستفسار:</strong><br>' + escapeHtml(i.message) + '</div>' +
           (i.admin_reply ? '<div class="reply"><strong>الرد السابق:</strong><br>' + escapeHtml(i.admin_reply) + '</div>' : '') +
-          '<div style="margin-top:0.75rem;">' +
+          '<div class="inquiry-actions">' +
             '<button class="btn btn-primary btn-sm" data-id="' + i.id + '" data-name="' + escapeHtml(i.full_name) + '" data-msg="' + escapeHtml(i.message).replace(/"/g, '&quot;') + '" onclick="openReplyFromBtn(this)">' +
               (i.admin_reply ? 'تعديل / إعادة الرد' : 'الرد') +
             '</button>' +
@@ -237,10 +237,10 @@
           '<td>' + escapeHtml(u.phone || '-') + '</td>' +
           '<td>' + formatDate(u.created_at) + '</td>' +
           '<td>' + u.inquiries_count + '</td>' +
-          '<td>' +
-            '<button class="btn btn-outline btn-sm" onclick="viewUserInquiries(' + u.id + ')">عرض الاستفسارات</button> ' +
+          '<td><div class="inquiry-actions">' +
+            '<button class="btn btn-outline btn-sm" onclick="viewUserInquiries(' + u.id + ')">عرض الاستفسارات</button>' +
             '<button class="btn btn-danger btn-sm" onclick="deleteUser(' + u.id + ', \'' + escapeHtml(u.full_name).replace(/'/g, "\\'") + '\')">حذف الحساب</button>' +
-          '</td>' +
+          '</div></td>' +
         '</tr>';
       }).join('');
     }
